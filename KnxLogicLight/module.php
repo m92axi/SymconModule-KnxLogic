@@ -621,8 +621,14 @@ class KnxLogicLight extends IPSModule
                     $sceneVal = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
                 }
             } else {
-                // BECAME absent. Always turn off.
-                $sceneVal = $this->ReadPropertyInteger('SceneOff');
+                // BECAME absent. Check if we should revert to a master scene or turn off.
+                $masterScene = $this->GetBuffer('MasterScene');
+                if ($masterScene !== '') {
+                    $sceneVal = (int)$masterScene;
+                    $this->SendDebug(__FUNCTION__, 'Reverting to Master Scene: ' . $sceneVal, 0);
+                } else {
+                    $sceneVal = $this->ReadPropertyInteger('SceneOff');
+                }
             }
 
             // Send to KNX
