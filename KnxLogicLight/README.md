@@ -18,6 +18,7 @@ Dieses Modul stellt eine Logik zur Steuerung von KNX-Lichtszenen in einem Raum b
 *   **Manuelle Steuerung:** Ermöglicht die manuelle Übersteuerung der Automatik durch Taster oder Szenenaufrufe. Der manuelle Modus hat eine einstellbare Dauer, nach der die Automatik wieder aktiv wird.
 *   **Master/Client-Funktionalität:**
     *   **Als Master:** Bleibt aktiv, solange verknüpfte Client-Instanzen (z.B. angrenzende Räume) Präsenz melden. Sendet Szenen an Clients weiter.
+    *   **Helligkeitssteuerung:** Berücksichtigt die Umgebungshelligkeit, um unnötiges Einschalten zu vermeiden und das Licht bei ausreichender Helligkeit automatisch auszuschalten.
     *   **Als Client:** Empfängt Szenen vom Master.
 *   **Dynamische Konfiguration:** Das Konfigurationsformular passt sich an (z.B. Ausblenden von Nacht-Optionen wenn nicht benötigt).
 
@@ -32,7 +33,7 @@ Der Raum gilt als "Präsent", wenn mindestens eine der folgenden Bedingungen erf
 3.  Eine verknüpfte **Client-Instanz** meldet Präsenz (z.B. Flur bleibt an, solange im Büro Licht ist).
 
 **Schaltverhalten**
-*   **Bei Präsenz:** Es wird die konfigurierte Szene für Tag (`SceneOn`) oder Nacht (`SceneOnNight`) an die KNX-Variable gesendet.
+*   **Bei Präsenz:** Es wird die konfigurierte Szene für Tag (`SceneOn`) oder Nacht (`SceneOnNight`) an die KNX-Variable gesendet. Ist die Option "Automatisch einschalten bei Dunkelheit" aktiv, geschieht dies nur, wenn die **Helligkeitsschwelle** unterschritten wird.
 *   **Bei Abwesenheit:** Es wird die "Aus"-Szene (`SceneOff`) gesendet.
 
 **Manueller Modus**
@@ -64,9 +65,10 @@ Feld                 | Beschreibung
 Sensoren             | Liste von Präsenz- (Zustand) oder Bewegungsmeldern (Event).
 Szenen Eingänge      | KNX-Szenen, die von extern empfangen werden (z.B. Taster). Können Automatik oder Manuell auslösen.
 Manueller Schalter   | DPT 1 Schalter zum Erzwingen des manuellen Modus (Ein/Aus).
-Automatik Schalter   | DPT 1 Schalter zum Erzwingen des Automatik-Modus (Ein/Aus).
+Automatik Schalter   | DPT 1 Schalter zum Erzwingen des Automatik-Modus.
 Tag/Nacht Schalter   | DPT 1 Schalter für Tag/Nacht-Umschaltung.
 Tag/Nacht Logik      | Invertierung des Tag/Nacht-Signals.
+Helligkeitssensoren  | Liste von Helligkeitssensoren (Lux, Float oder Integer) und deren prozentuale Gewichtung für die Durchschnittsberechnung.
 
 **KNX Ausgänge**
 
@@ -83,8 +85,11 @@ Feld                               | Beschreibung
 Szene bei Präsenz (EIN) - Tag      | Szenennummer für Tag.
 Szene bei Präsenz (EIN) - Nacht    | Szenennummer für Nacht.
 Szene bei Abwesenheit (AUS)        | Szenennummer für Aus.
-Bewegungsmelder Nachlaufzeit       | Zeit in Sekunden, wie lange Bewegung nachwirkt.
+Bewegungsmelder Nachlaufzeit       | Zeit in Sekunden, wie lange Bewegung nachwirkt (getrennt für Tag/Nacht).
 Aktualisierungsintervall           | Intervall für die Restzeitanzeige.
+Helligkeitsschwelle (Tag/Nacht)    | Lux-Wert, unter dem das Licht bei Präsenz eingeschaltet wird.
+Automatisch einschalten bei Dunkelheit | Aktiviert das Einschalten bei Präsenz nur, wenn es dunkel genug ist.
+Automatisch ausschalten bei Helligkeit | Schaltet das Licht aus, wenn es hell genug wird, auch wenn noch Präsenz besteht.
 Manuelle Modus Dauer               | Zeit in Sekunden bis Rückfall in Automatik.
 Client Instanzen                   | Untergeordnete Instanzen, deren Präsenz diese Instanz aktiv hält.
 
@@ -100,6 +105,7 @@ Presence State   | Boolean   | Aktueller Präsenzstatus (True = Anwesend).
 Remaining Time   | Integer   | Verbleibende Zeit (Nachlaufzeit oder Manuell-Timer).
 Manual Active    | Boolean   | True, wenn manueller Modus aktiv ist.
 Day Mode         | Boolean   | True, wenn Tag-Modus aktiv ist.
+Current Brightness | Float     | Die aktuell berechnete, gewichtete durchschnittliche Helligkeit in Lux.
 
 ### 7. PHP-Befehlsreferenz
 

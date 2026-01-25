@@ -85,13 +85,47 @@
                     "type": "SelectVariable",
                     "name": "ManualSwitchID",
                     "caption": "Manual Switch (DPT 1)",
+                    "width": "45%",
                     "validVariableTypes": [0]
                 },
                 {
                     "type": "SelectVariable",
                     "name": "AutoSwitchID",
                     "caption": "Automatic Switch (DPT 1)",
+                    "width": "45%",
                     "validVariableTypes": [0]
+                },
+                {
+                    "type": "List",
+                    "name": "BrightnessSensors",
+                    "caption": "Brightness Sensors",
+                    "rowCount": 3,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Variable (Lux)",
+                            "name": "VariableID",
+                            "width": "auto",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectVariable",
+                                "validVariableTypes": [1,2]
+                            }
+                        },
+                        {
+                            "caption": "Weight (%)",
+                            "name": "Weight",
+                            "width": "150px",
+                            "add": 100,
+                            "edit": {
+                                "type": "NumberSpinner",
+                                "minimum": 0,
+                                "maximum": 100,
+                                "suffix": "%"
+                            }
+                        }
+                    ]
                 },
                 {
                     "type": "RowLayout",
@@ -100,18 +134,21 @@
                             "type": "SelectVariable",
                             "name": "DayNightSwitchID",
                             "caption": "Day/Night Switch (DPT 1)",
+                            "width": "500px",
                             "validVariableTypes": [0]
                         },
                         {
                             "type": "Select",
                             "name": "DayNightLogic",
                             "caption": "Day/Night Logic",
+                            "width": "250px",
                             "options": [
                                 { "caption": "1 = Day, 0 = Night", "value": 0 },
                                 { "caption": "1 = Night, 0 = Day", "value": 1 }
                             ]
                         }
                     ]
+                    
                 }
             ]
         },
@@ -198,6 +235,35 @@
                     "caption": "Update Interval (Remaining Time)",
                     "minimum": 0,
                     "suffix": "s"
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "NumberSpinner",
+                            "name": "BrightnessThresholdDay",
+                            "caption": "Brightness Threshold (Day)",
+                            "minimum": 0,
+                            "suffix": " Lux"
+                        },
+                        {
+                            "type": "NumberSpinner",
+                            "name": "BrightnessThresholdNight",
+                            "caption": "Brightness Threshold (Night)",
+                            "minimum": 0,
+                            "suffix": " Lux"
+                        }
+                    ]
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "AutoOnOnBrightness",
+                    "caption": "Turn on automatically when brightness is low"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "AutoOffOnBrightness",
+                    "caption": "Turn off automatically when brightness is high"
                 },
                 {
                     "type": "NumberSpinner",

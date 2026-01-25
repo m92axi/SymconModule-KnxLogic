@@ -35,7 +35,17 @@
             "Client Instances (KnxLogicLight)": "Client Instanzen (KnxLogicLight)",
             "Mode after receiving Scene": "Modus nach Empfang der Szene",
             "Automatic": "Automatik",
-            "Manual": "Manuell"
+            "Manual": "Manuell",
+            "Motion Timer (Seconds) - Day": "Bewegungsmelder Nachlaufzeit (Sekunden) - Tag",
+            "Motion Timer (Seconds) - Night": "Bewegungsmelder Nachlaufzeit (Sekunden) - Nacht",
+            "Brightness Sensors": "Helligkeitssensoren",
+            "Variable (Lux)": "Variable (Lux)",
+            "Weight (%)": "Gewichtung (%)",
+            "Brightness Threshold (Day)": "Helligkeitsschwelle (Tag)",
+            "Brightness Threshold (Night)": "Helligkeitsschwelle (Nacht)",
+            "Turn on automatically when brightness is low": "Automatisch einschalten bei Dunkelheit",
+            "Turn off automatically when brightness is high": "Automatisch ausschalten bei Helligkeit",
+            "Current Brightness": "Aktuelle Helligkeit"
         }
     }
 }

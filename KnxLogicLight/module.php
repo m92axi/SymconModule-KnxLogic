@@ -31,6 +31,11 @@ class KnxLogicLight extends IPSModule
         $this->RegisterPropertyInteger('MotionDurationNight', 60);
         $this->RegisterPropertyInteger('UpdateInterval', 10);
         $this->RegisterPropertyInteger('ManualDuration', 3600);
+        $this->RegisterPropertyString('BrightnessSensors', '[]');
+        $this->RegisterPropertyInteger('BrightnessThresholdDay', 300);
+        $this->RegisterPropertyInteger('BrightnessThresholdNight', 50);
+        $this->RegisterPropertyBoolean('AutoOnOnBrightness', true);
+        $this->RegisterPropertyBoolean('AutoOffOnBrightness', false);
         $this->RegisterPropertyString('ClientInstances', '[]');
 
         $this->RegisterTimer('MotionTimer', 0, 'KLL_MotionTimerExpired(' . $this->InstanceID . ');');
@@ -40,6 +45,7 @@ class KnxLogicLight extends IPSModule
         $this->RegisterVariableInteger('RemainingTime', 'Remaining Time', '', 0);
         $this->RegisterVariableBoolean('ManualActive', 'Manual Active', '~Switch', 0);
         $this->RegisterVariableBoolean('DayState', 'Day Mode', '~Switch', 0);
+        $this->RegisterVariableFloat('CurrentBrightness', 'Current Brightness', '~Illumination', 0);
     }
 
     /**
@@ -194,6 +200,13 @@ class KnxLogicLight extends IPSModule
         $dayNightSwitch = $this->ReadPropertyInteger('DayNightSwitchID');
         if ($dayNightSwitch > 0 && IPS_VariableExists($dayNightSwitch)) {
             $this->RegisterMessage($dayNightSwitch, VM_UPDATE);
+            // Initial update
+            $val = GetValueBoolean($dayNightSwitch);
+            $logic = $this->ReadPropertyInteger('DayNightLogic');
+            $isDay = ($logic == 0) ? $val : !$val;
+            SetValueBoolean($this->GetIDForIdent('DayState'), $isDay);
+        } else {
+            SetValueBoolean($this->GetIDForIdent('DayState'), true);
         }
 
         // Register Client Instance Presence
@@ -207,6 +220,18 @@ class KnxLogicLight extends IPSModule
                 }
             }
         }
+
+        // Register Brightness Sensors
+        $brightnessSensors = json_decode($this->ReadPropertyString('BrightnessSensors'), true);
+        foreach ($brightnessSensors as $sensor) {
+            $id = $sensor['VariableID'];
+            if ($id > 0 && IPS_VariableExists($id)) {
+                $this->RegisterMessage($id, VM_UPDATE);
+            }
+        }
+
+        // Initial calculation of brightness
+        $this->CalculateBrightness();
     }
 
     /**
@@ -227,6 +252,20 @@ class KnxLogicLight extends IPSModule
     {
         $this->SendDebug(__FUNCTION__, 'Sender: ' . $sender . ', Message: ' . $message . ', Data: ' . json_encode($data), 0);
         if ($message === VM_UPDATE) {
+            // Check Brightness Sensors
+            $brightnessSensors = json_decode($this->ReadPropertyString('BrightnessSensors'), true);
+            $isBrightnessSensor = false;
+            foreach ($brightnessSensors as $sensor) {
+                if ($sensor['VariableID'] == $sender) {
+                    $isBrightnessSensor = true;
+                    break;
+                }
+            }
+            if ($isBrightnessSensor) {
+                $this->SendDebug(__FUNCTION__, 'Brightness sensor update from: ' . $sender, 0);
+                $this->CalculateBrightness();
+                return;
+            }
             $sensors = json_decode($this->ReadPropertyString('Sensors'), true);
             $isSensor = false;
             $sensorType = 0; // 0 = Presence, 1 = Motion
@@ -560,26 +599,33 @@ class KnxLogicLight extends IPSModule
         $currentState = GetValueBoolean($stateVarID);
         
         if ($isPresent != $currentState) {
-            SetValueBoolean($stateVarID, $isPresent);
             $this->SendDebug(__FUNCTION__, 'Presence state changed to: ' . ($isPresent ? 'Present' : 'Not Present'), 0);
             
             // Determine Scene Value
             $sceneVal = 0;
             if ($isPresent) {
-                $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
-                $isDay = true;
-                if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
+                // BECAME present. Check if we should turn on.
+                $autoOn = $this->ReadPropertyBoolean('AutoOnOnBrightness');
+                $isBrightEnough = false;
+                if ($autoOn) {
+                    $currentBrightness = GetValueFloat($this->GetIDForIdent('CurrentBrightness'));
                     $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
+                    $threshold = $isDay ? $this->ReadPropertyInteger('BrightnessThresholdDay') : $this->ReadPropertyInteger('BrightnessThresholdNight');
+                    if ($currentBrightness >= $threshold) {
+                        $isBrightEnough = true;
+                    }
                 }
-                $sceneVal = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
-            } else {
-                $masterScene = $this->GetBuffer('MasterScene');
-                if ($masterScene !== '') {
-                    $sceneVal = (int)$masterScene;
-                    $this->SendDebug(__FUNCTION__, 'Reverting to Master Scene: ' . $sceneVal, 0);
-                } else {
+
+                if ($isBrightEnough) {
+                    $this->SendDebug(__FUNCTION__, 'Presence detected, but it is bright enough. Light remains off.', 0);
                     $sceneVal = $this->ReadPropertyInteger('SceneOff');
+                } else {
+                    $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
+                    $sceneVal = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
                 }
+            } else {
+                // BECAME absent. Always turn off.
+                $sceneVal = $this->ReadPropertyInteger('SceneOff');
             }
 
             // Send to KNX
@@ -587,6 +633,9 @@ class KnxLogicLight extends IPSModule
             if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
                 RequestAction($sceneVar, $sceneVal);
             }
+
+            // Update internal state AFTER sending command to prevent race conditions with feedback
+            SetValueBoolean($stateVarID, $isPresent);
 
             // Send to Client Instance
             foreach ($clientInstances as $client) {
@@ -625,6 +674,69 @@ class KnxLogicLight extends IPSModule
             }
         }
         return $this->ReadPropertyInteger('MotionDuration');
+    }
+
+    private function CalculateBrightness()
+    {
+        $brightnessSensors = json_decode($this->ReadPropertyString('BrightnessSensors'), true);
+        if (count($brightnessSensors) == 0) {
+            // Set to a high value if no sensor is configured, so brightness logic doesn't interfere
+            if (GetValueFloat($this->GetIDForIdent('CurrentBrightness')) != 99999) {
+                SetValueFloat($this->GetIDForIdent('CurrentBrightness'), 99999);
+            }
+            return;
+        }
+
+        $totalBrightness = 0;
+        $totalWeight = 0;
+
+        foreach ($brightnessSensors as $sensor) {
+            $id = $sensor['VariableID'];
+            $weight = $sensor['Weight'];
+            if ($id > 0 && IPS_VariableExists($id) && $weight > 0) {
+                $totalBrightness += (float)GetValue($id) * $weight;
+                $totalWeight += $weight;
+            }
+        }
+
+        $avgBrightness = 0;
+        if ($totalWeight > 0) {
+            $avgBrightness = $totalBrightness / $totalWeight;
+        }
+
+        SetValueFloat($this->GetIDForIdent('CurrentBrightness'), $avgBrightness);
+        $this->SendDebug(__FUNCTION__, 'Calculated average brightness: ' . $avgBrightness . ' Lux', 0);
+
+        // After calculating, check if the light state needs to change
+        $this->CheckBrightnessLogic();
+    }
+
+    private function CheckBrightnessLogic()
+    {
+        if (GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+            return;
+        }
+        // This logic is for changes while presence is already active
+        if (!GetValueBoolean($this->GetIDForIdent('PresenceState'))) {
+            return;
+        }
+        $currentBrightness = GetValueFloat($this->GetIDForIdent('CurrentBrightness'));
+        $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
+        $threshold = $isDay ? $this->ReadPropertyInteger('BrightnessThresholdDay') : $this->ReadPropertyInteger('BrightnessThresholdNight');
+        $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
+        if ($sceneVar <= 0 || !IPS_VariableExists($sceneVar)) {
+            return;
+        }
+        $currentScene = GetValueInteger($sceneVar);
+        $sceneOn = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
+        $sceneOff = $this->ReadPropertyInteger('SceneOff');
+        // Check if we should turn OFF because it got too bright
+        $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
+        if ($autoOff && $currentBrightness > $threshold && $currentScene != $sceneOff) {
+            $this->SendDebug(__FUNCTION__, 'Turning OFF due to high brightness (' . $currentBrightness . ' > ' . $threshold . ')', 0);
+            RequestAction($sceneVar, $sceneOff);
+            return;
+        }
     }
 
     public function ResetMotionTimer()
