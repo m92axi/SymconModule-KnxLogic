@@ -1,8 +1,8 @@
 {
     "id": "{2CA27E77-E011-0A81-6C55-92DBD5E81EC4}",
     "name": "KnxLogic",
-    "author": "M.Rauch",
-    "url": "https://symcon.de",
+    "author": "MaxR",
+    "url": "https://github.com/m92axi/SymconModule-KnxLogic",
     "compatibility": {
         "version": "8.1"
     },
