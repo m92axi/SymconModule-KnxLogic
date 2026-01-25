@@ -1,0 +1,16 @@
+{
+    "id": "{1D84E46A-D6D1-D670-EDFA-97032F591332}",
+    "name": "KnxLogicLight",
+    "url": "http://dasIstDoof.de",
+    "type": 3,
+    "vendor": "",
+    "aliases": [
+    ],
+    "parentRequirements": [
+    ],
+    "childRequirements": [
+    ],
+    "implemented": [
+    ],
+    "prefix": "KLL"
+}

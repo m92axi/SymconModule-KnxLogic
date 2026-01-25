@@ -1,0 +1,244 @@
+{
+    "elements": [
+        {
+            "type": "ExpansionPanel",
+            "caption": "KNX Inputs",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "List",
+                    "name": "Sensors",
+                    "caption": "Sensors (Presence/Motion)",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Variable",
+                            "name": "VariableID",
+                            "width": "auto",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectVariable",
+                                "validVariableTypes": [0]
+                            }
+                        },
+                        {
+                            "caption": "Type",
+                            "name": "SensorType",
+                            "width": "200px",
+                            "add": 0,
+                            "edit": {
+                                "type": "Select",
+                                "options": [
+                                    { "caption": "Presence (State)", "value": 0 },
+                                    { "caption": "Motion (Event)", "value": 1 }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "List",
+                    "name": "SceneInputs",
+                    "caption": "Scene Inputs",
+                    "rowCount": 3,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Variable",
+                            "name": "VariableID",
+                            "width": "35%",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectVariable",
+                                "validVariableTypes": [1]
+                            }
+                        },
+                        {
+                            "caption": "Save Variable",
+                            "name": "SaveVariableID",
+                            "width": "35%",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectVariable",
+                                "validVariableTypes": [0]
+                            }
+                        },
+                        {
+                            "caption": "Mode after receiving Scene",
+                            "name": "Mode",
+                            "width": "20%",
+                            "add": 1,
+                            "edit": {
+                                "type": "Select",
+                                "options": [
+                                    { "caption": "Automatic", "value": 0 },
+                                    { "caption": "Manual", "value": 1 }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ManualSwitchID",
+                    "caption": "Manual Switch (DPT 1)",
+                    "validVariableTypes": [0]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "AutoSwitchID",
+                    "caption": "Automatic Switch (DPT 1)",
+                    "validVariableTypes": [0]
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "SelectVariable",
+                            "name": "DayNightSwitchID",
+                            "caption": "Day/Night Switch (DPT 1)",
+                            "validVariableTypes": [0]
+                        },
+                        {
+                            "type": "Select",
+                            "name": "DayNightLogic",
+                            "caption": "Day/Night Logic",
+                            "options": [
+                                { "caption": "1 = Day, 0 = Night", "value": 0 },
+                                { "caption": "1 = Night, 0 = Day", "value": 1 }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "KNX Outputs",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "SceneVariableID",
+                    "caption": "KNX Scene Variable (DPT 17/18)",
+                    "validVariableTypes": [1]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "SceneSaveVariableID",
+                    "caption": "KNX Scene Save Variable (DPT 1)",
+                    "validVariableTypes": [0]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ManualStateOutputID",
+                    "caption": "Manual State Output (DPT 1)",
+                    "validVariableTypes": [0]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Settings",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "NumberSpinner",
+                            "name": "SceneOn",
+                            "caption": "Scene on Presence (ON) - Day",
+                            "minimum": 0,
+                            "maximum": 63
+                        },
+                        {
+                            "type": "NumberSpinner",
+                            "name": "SceneOnNight",
+                            "caption": "Scene on Presence (ON) - Night",
+                            "minimum": 0,
+                            "maximum": 63
+                        }
+                        
+                    ]
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "SceneOff",
+                    "caption": "Scene on Absence (OFF)",
+                    "minimum": 0,
+                    "maximum": 63
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "NumberSpinner",
+                            "name": "MotionDuration",
+                            "caption": "Motion Timer (Seconds) - Day",
+                            "minimum": 0,
+                            "suffix": "s"
+                        },
+                        {
+                            "type": "NumberSpinner",
+                            "name": "MotionDurationNight",
+                            "caption": "Motion Timer (Seconds) - Night",
+                            "minimum": 0,
+                            "suffix": "s"
+                        }
+                        
+                    ]
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "UpdateInterval",
+                    "caption": "Update Interval (Remaining Time)",
+                    "minimum": 0,
+                    "suffix": "s"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ManualDuration",
+                    "caption": "Manual Mode Duration (Seconds)",
+                    "minimum": 0,
+                    "suffix": "s"
+                },
+                {
+                    "type": "List",
+                    "name": "ClientInstances",
+                    "caption": "Client Instances (KnxLogicLight)",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Instance ID",
+                            "name": "InstanceID",
+                            "width": "auto",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectInstance",
+                                "validModuleID": "{66B61608-6820-4131-957D-70F4C8D67C63}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Simulate Motion",
+            "onClick": "KLL_SimulateMotion($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Reset Motion Timer",
+            "onClick": "KLL_ResetMotionTimer($id);"
+                        }
+                    ]
+                }

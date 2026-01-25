@@ -1,0 +1,41 @@
+{
+    "translations": {
+        "de": {
+            "KnxLogicLight": "KnxLogicLight",
+            "Sensors (Presence/Motion)": "Sensoren (Präsenz/Bewegung)",
+            "Variable": "Variable",
+            "KNX Scene Variable (DPT 17/18)": "KNX Szenen Variable (DPT 17/18)",
+            "Scene on Presence (ON) - Day": "Szene bei Präsenz (EIN) - Tag",
+            "Scene on Presence (ON) - Night": "Szene bei Präsenz (EIN) - Nacht",
+            "Scene on Absence (OFF)": "Szene bei Abwesenheit (AUS)",
+            "Type": "Typ",
+            "Presence (State)": "Präsenz (Zustand)",
+            "Motion (Event)": "Bewegung (Event)",
+            "Motion Timer (Seconds)": "Bewegungsmelder Nachlaufzeit (Sekunden)",
+            "Settings": "Einstellungen",
+            "KNX Inputs": "KNX Eingänge",
+            "Scene Inputs": "Szenen Eingänge",
+            "KNX Outputs": "KNX Ausgänge",
+            "Update Interval (Remaining Time)": "Aktualisierungsintervall (Restzeit)",
+            "Remaining Time": "Verbleibende Zeit",
+            "Simulate Motion": "Bewegung simulieren",
+            "Reset Motion Timer": "Bewegungstimer zurücksetzen",
+            "Save Variable": "Speicher Variable",
+            "KNX Scene Save Variable (DPT 1)": "KNX Szenen Speicher Variable (DPT 1)",
+            "Manual Switch (DPT 1)": "Manueller Schalter (DPT 1)",
+            "Manual State Output (DPT 1)": "Manueller Status Ausgang (DPT 1)",
+            "Manual Active": "Manuell Aktiv",
+            "Manual Mode Duration (Seconds)": "Manuelle Modus Dauer (Sekunden)",
+            "Automatic Switch (DPT 1)": "Automatik Schalter (DPT 1)",
+            "Day/Night Switch (DPT 1)": "Tag/Nacht Schalter (DPT 1)",
+            "Day/Night Logic": "Tag/Nacht Logik",
+            "1 = Day, 0 = Night": "1 = Tag, 0 = Nacht",
+            "1 = Night, 0 = Day": "1 = Nacht, 0 = Tag",
+            "Day Mode": "Tag Modus",
+            "Client Instances (KnxLogicLight)": "Client Instanzen (KnxLogicLight)",
+            "Mode after receiving Scene": "Modus nach Empfang der Szene",
+            "Automatic": "Automatik",
+            "Manual": "Manuell"
+        }
+    }
+}
