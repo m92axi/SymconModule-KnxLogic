@@ -330,6 +330,8 @@ class KnxLogicLight extends IPSModule
 
             // Check Scene Output Feedback
             if ($sender == $this->ReadPropertyInteger('SceneVariableID')) {
+                $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (not final implemented)', 0);
+                return;
                 $saveVar = $this->ReadPropertyInteger('SceneSaveVariableID');
                 if ($saveVar > 0 && IPS_VariableExists($saveVar) && GetValueBoolean($saveVar)) {
                     $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (Save active)', 0);
@@ -448,22 +450,27 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function SendKNXScene(bool $State)
+    private function WriteKNXScene(int $Value)
     {
         $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
         if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
             $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
-            if ($State) {
-                $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
-                $isDay = true;
-                if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
-                    $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
-                }
-                $sceneOn = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
-                RequestAction($sceneVar, $sceneOn);
-            } else {
-                RequestAction($sceneVar, $this->ReadPropertyInteger('SceneOff'));
+            RequestAction($sceneVar, $Value);
+        }
+    }
+
+    private function SendKNXScene(bool $State)
+    {
+        if ($State) {
+            $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
+            $isDay = true;
+            if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
+                $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
             }
+            $sceneOn = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
+            $this->WriteKNXScene($sceneOn);
+        } else {
+            $this->WriteKNXScene($this->ReadPropertyInteger('SceneOff'));
         }
     }
 
@@ -619,11 +626,7 @@ class KnxLogicLight extends IPSModule
             }
 
             // Send to KNX
-            $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
-            if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
-                $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
-                RequestAction($sceneVar, $sceneVal);
-            }
+            $this->WriteKNXScene($sceneVal);
 
             // Update internal state AFTER sending command to prevent race conditions with feedback
             SetValueBoolean($stateVarID, $isPresent);
@@ -725,8 +728,7 @@ class KnxLogicLight extends IPSModule
         $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
         if ($autoOff && $currentBrightness > $threshold && $currentScene != $sceneOff) {
             $this->SendDebug(__FUNCTION__, 'Turning OFF due to high brightness (' . $currentBrightness . ' > ' . $threshold . ')', 0);
-            $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
-            RequestAction($sceneVar, $sceneOff);
+            $this->WriteKNXScene($sceneOff);
             return;
         }
     }
@@ -760,13 +762,8 @@ class KnxLogicLight extends IPSModule
         }
 
         // Forward Scene
-        $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
-        if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
-            $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
-            RequestAction($sceneVar, $Scene);
-            $this->SendDebug(__FUNCTION__, 'Scene forwarded to KNX', 0);
-        }
-
+        $this->WriteKNXScene($Scene);
+        $this->SendDebug(__FUNCTION__, 'Scene forwarded to KNX', 0);
     }
 
     /**
