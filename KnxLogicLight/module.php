@@ -460,7 +460,7 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function SendKNXScene(bool $State)
+    private function GetSceneForState(bool $State): int
     {
         if ($State) {
             $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
@@ -468,11 +468,20 @@ class KnxLogicLight extends IPSModule
             if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
                 $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
             }
-            $sceneOn = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
-            $this->WriteKNXScene($sceneOn);
+            return $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
         } else {
-            $this->WriteKNXScene($this->ReadPropertyInteger('SceneOff'));
+            $masterScene = $this->GetBuffer('MasterScene');
+            if ($masterScene !== '') {
+                $this->SendDebug(__FUNCTION__, 'Reverting to Master Scene: ' . $masterScene, 0);
+                return (int)$masterScene;
+            }
+            return $this->ReadPropertyInteger('SceneOff');
         }
+    }
+
+    private function SendKNXScene(bool $State)
+    {
+        $this->WriteKNXScene($this->GetSceneForState($State));
     }
 
     private function SetState(?bool $State, int $Mode, bool $SendKNX = true)
@@ -616,20 +625,13 @@ class KnxLogicLight extends IPSModule
 
                 if ($isBrightEnough) {
                     $this->SendDebug(__FUNCTION__, 'Presence detected, but it is bright enough. Light remains off.', 0);
-                    $sceneVal = $this->ReadPropertyInteger('SceneOff');
+                    $sceneVal = $this->GetSceneForState(false);
                 } else {
-                    $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
-                    $sceneVal = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
+                    $sceneVal = $this->GetSceneForState(true);
                 }
             } else {
                 // BECAME absent. Check if we should revert to a master scene or turn off.
-                $masterScene = $this->GetBuffer('MasterScene');
-                if ($masterScene !== '') {
-                    $sceneVal = (int)$masterScene;
-                    $this->SendDebug(__FUNCTION__, 'Reverting to Master Scene: ' . $sceneVal, 0);
-                } else {
-                    $sceneVal = $this->ReadPropertyInteger('SceneOff');
-                }
+                $sceneVal = $this->GetSceneForState(false);
             }
 
             // Send to KNX
@@ -729,8 +731,7 @@ class KnxLogicLight extends IPSModule
             return;
         }
         $currentScene = GetValueInteger($sceneVar);
-        $sceneOn = $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
-        $sceneOff = $this->ReadPropertyInteger('SceneOff');
+        $sceneOff = $this->GetSceneForState(false);
         // Check if we should turn OFF because it got too bright
         $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
         $hysteresis = $this->ReadPropertyInteger('BrightnessHysteresis');
