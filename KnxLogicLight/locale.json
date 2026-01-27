@@ -46,7 +46,8 @@
             "Brightness Hysteresis": "Helligkeitshysterese",
             "Turn on automatically when brightness is low": "Automatisch einschalten bei Dunkelheit",
             "Turn off automatically when brightness is high": "Automatisch ausschalten bei Helligkeit",
-            "Current Brightness": "Aktuelle Helligkeit"
+            "Current Brightness": "Aktuelle Helligkeit",
+            "Light State": "Lichtstatus"
         }
     }
 }

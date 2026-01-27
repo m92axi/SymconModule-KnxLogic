@@ -47,6 +47,7 @@ class KnxLogicLight extends IPSModule
         $this->RegisterVariableBoolean('ManualActive', 'Manual Active', '~Switch', 0);
         $this->RegisterVariableBoolean('DayState', 'Day Mode', '~Switch', 0);
         $this->RegisterVariableFloat('CurrentBrightness', 'Current Brightness', '~Illumination', 0);
+        $this->RegisterVariableBoolean('LightState', 'Light State', '~Switch', 0);
     }
 
     /**
@@ -331,8 +332,8 @@ class KnxLogicLight extends IPSModule
 
             // Check Scene Output Feedback
             if ($sender == $this->ReadPropertyInteger('SceneVariableID')) {
-                $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (not final implemented)', 0);
-                return;
+                //$this->SendDebug(__FUNCTION__, 'Scene Output update ignored (not final implemented)', 0);
+                //return;
                 $saveVar = $this->ReadPropertyInteger('SceneSaveVariableID');
                 if ($saveVar > 0 && IPS_VariableExists($saveVar) && GetValueBoolean($saveVar)) {
                     $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (Save active)', 0);
@@ -341,10 +342,11 @@ class KnxLogicLight extends IPSModule
 
                 // Check if we should ignore this update (because we caused it)
                 $ignoreTime = (float)$this->GetBuffer('IgnoreSceneUpdate');
+                //$this->SendDebug(__FUNCTION__, 'Ignor Time for Scene Output update:' . $ignoreTime ."-" . microtime(true), 0);
                 if ($ignoreTime > 0) {
-                    $this->SetBuffer('IgnoreSceneUpdate', ''); // Clear flag
+                    //$this->SetBuffer('IgnoreSceneUpdate', ''); // Clear flag
                     if ((microtime(true) - $ignoreTime) < 5.0) { // 5 seconds timeout
-                        $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (Self-triggered)', 0);
+                        $this->SendDebug(__FUNCTION__, 'Scene Output update ignored (Self-triggered):' . $ignoreTime ."-" . microtime(true), 0);
                         return;
                     }
                 }
@@ -352,13 +354,14 @@ class KnxLogicLight extends IPSModule
                 // An external scene change should activate the manual mode
                 $val = (int)$data[0];
                 $sceneOff = $this->ReadPropertyInteger('SceneOff');
+                $CurerentMode = GetValueBoolean($this->GetIDForIdent('ManualActive'));
                 if ($val != $sceneOff) {
-                    $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating manual mode.', 0);
-                    $this->SetState(true, 1, false);
+                    $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
+                    $this->SetState(true, ($CurerentMode ? 0 : 1), false);
                 } else { // $val == $sceneOff
                     // When turned off externally, we can go back to auto mode immediately
                     $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. Switching to auto mode.', 0);
-                    $this->SetState(false, 0, false);
+                    $this->SetState(false, ($CurerentMode ? 0 : 1), false);
                 }
                 return;
             }
@@ -458,6 +461,9 @@ class KnxLogicLight extends IPSModule
             $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
             RequestAction($sceneVar, $Value);
         }
+
+        $sceneOff = $this->ReadPropertyInteger('SceneOff');
+        SetValueBoolean($this->GetIDForIdent('LightState'), $Value !== $sceneOff);
     }
 
     private function GetSceneForState(bool $State): int
