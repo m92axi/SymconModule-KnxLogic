@@ -481,7 +481,20 @@ class KnxLogicLight extends IPSModule
 
     private function SendKNXScene(bool $State)
     {
-        $this->WriteKNXScene($this->GetSceneForState($State));
+        $scene = $this->GetSceneForState($State);
+        $this->WriteKNXScene($scene);
+
+        // Send to Client Instances
+        $clientInstances = json_decode($this->ReadPropertyString('ClientInstances'), true);
+        foreach ($clientInstances as $client) {
+            $clientID = $client['InstanceID'];
+            if ($clientID > 0 && IPS_InstanceExists($clientID)) {
+                if (function_exists('KLL_SceneFromMaster')) {
+                    $this->SendDebug(__FUNCTION__, 'Sending Scene to Client (' . $clientID . '): ' . $scene, 0);
+                    KLL_SceneFromMaster($clientID, $scene, $State);
+                }
+            }
+        }
     }
 
     private function SetState(?bool $State, int $Mode, bool $SendKNX = true)
@@ -608,8 +621,8 @@ class KnxLogicLight extends IPSModule
         if ($isPresent != $currentState) {
             $this->SendDebug(__FUNCTION__, 'Presence state changed to: ' . ($isPresent ? 'Present' : 'Not Present'), 0);
             
-            // Determine Scene Value
-            $sceneVal = 0;
+            // Determine Target State
+            $targetState = false;
             if ($isPresent) {
                 // BECAME present. Check if we should turn on.
                 $autoOn = $this->ReadPropertyBoolean('AutoOnOnBrightness');
@@ -625,31 +638,20 @@ class KnxLogicLight extends IPSModule
 
                 if ($isBrightEnough) {
                     $this->SendDebug(__FUNCTION__, 'Presence detected, but it is bright enough. Light remains off.', 0);
-                    $sceneVal = $this->GetSceneForState(false);
+                    $targetState = false;
                 } else {
-                    $sceneVal = $this->GetSceneForState(true);
+                    $targetState = true;
                 }
             } else {
-                // BECAME absent. Check if we should revert to a master scene or turn off.
-                $sceneVal = $this->GetSceneForState(false);
+                // BECAME absent.
+                $targetState = false;
             }
 
             // Send to KNX
-            $this->WriteKNXScene($sceneVal);
+            $this->SendKNXScene($targetState);
 
             // Update internal state AFTER sending command to prevent race conditions with feedback
             SetValueBoolean($stateVarID, $isPresent);
-
-            // Send to Client Instance
-            foreach ($clientInstances as $client) {
-                $clientID = $client['InstanceID'];
-                if ($clientID > 0 && IPS_InstanceExists($clientID)) {
-                    if (function_exists('KLL_SceneFromMaster')) {
-                        $this->SendDebug(__FUNCTION__, 'Sending Scene to Client (' . $clientID . '): ' . $sceneVal, 0);
-                        KLL_SceneFromMaster($clientID, $sceneVal, $isPresent);
-                    }
-                }
-            }
         }
     }
 
