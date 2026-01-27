@@ -256,6 +256,13 @@
                     ]
                 },
                 {
+                    "type": "NumberSpinner",
+                    "name": "BrightnessHysteresis",
+                    "caption": "Brightness Hysteresis",
+                    "minimum": 0,
+                    "suffix": " Lux"
+                },
+                {
                     "type": "CheckBox",
                     "name": "AutoOnOnBrightness",
                     "caption": "Turn on automatically when brightness is low"

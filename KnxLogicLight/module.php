@@ -34,6 +34,7 @@ class KnxLogicLight extends IPSModule
         $this->RegisterPropertyString('BrightnessSensors', '[]');
         $this->RegisterPropertyInteger('BrightnessThresholdDay', 300);
         $this->RegisterPropertyInteger('BrightnessThresholdNight', 50);
+        $this->RegisterPropertyInteger('BrightnessHysteresis', 50);
         $this->RegisterPropertyBoolean('AutoOnOnBrightness', true);
         $this->RegisterPropertyBoolean('AutoOffOnBrightness', false);
         $this->RegisterPropertyString('ClientInstances', '[]');
@@ -110,7 +111,7 @@ class KnxLogicLight extends IPSModule
             if (isset($element['items'])) {
                 $newItems = [];
                 foreach ($element['items'] as $item) {
-                    if (isset($item['name']) && ($item['name'] == 'SceneOnNight' || $item['name'] == 'MotionDurationNight')) {
+                    if (isset($item['name']) && ($item['name'] == 'SceneOnNight' || $item['name'] == 'MotionDurationNight' || $item['name'] == 'BrightnessThresholdNight')) {
                         continue;
                     }
                     $newItems[] = $item;
@@ -732,8 +733,9 @@ class KnxLogicLight extends IPSModule
         $sceneOff = $this->ReadPropertyInteger('SceneOff');
         // Check if we should turn OFF because it got too bright
         $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
-        if ($autoOff && $currentBrightness > $threshold && $currentScene != $sceneOff) {
-            $this->SendDebug(__FUNCTION__, 'Turning OFF due to high brightness (' . $currentBrightness . ' > ' . $threshold . ')', 0);
+        $hysteresis = $this->ReadPropertyInteger('BrightnessHysteresis');
+        if ($autoOff && $currentBrightness > ($threshold + $hysteresis) && $currentScene != $sceneOff) {
+            $this->SendDebug(__FUNCTION__, 'Turning OFF due to high brightness (' . $currentBrightness . ' > ' . ($threshold + $hysteresis) . ')', 0);
             $this->WriteKNXScene($sceneOff);
             return;
         }
