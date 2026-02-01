@@ -38,6 +38,7 @@ class KnxLogicLight extends IPSModule
         $this->RegisterPropertyBoolean('AutoOnOnBrightness', true);
         $this->RegisterPropertyBoolean('AutoOffOnBrightness', false);
         $this->RegisterPropertyString('ClientInstances', '[]');
+        $this->RegisterPropertyString('SceneSequence', '[]');
 
         $this->RegisterTimer('MotionTimer', 0, 'KLL_MotionTimerExpired(' . $this->InstanceID . ');');
         $this->RegisterTimer('UpdateTimer', 0, 'KLL_UpdateRemainingTime(' . $this->InstanceID . ');');
@@ -136,6 +137,17 @@ class KnxLogicLight extends IPSModule
                 unset($element['minimum']);
                 unset($element['maximum']);
                 unset($element['suffix']);
+            }
+
+            if (isset($element['name']) && $element['name'] == 'SceneSequence' && isset($element['columns'])) {
+                foreach ($element['columns'] as &$column) {
+                    if ($column['name'] == 'SceneID') {
+                        $column['edit'] = [
+                            'type'    => 'Select',
+                            'options' => $options
+                        ];
+                    }
+                }
             }
         }
     }
@@ -276,7 +288,12 @@ class KnxLogicLight extends IPSModule
             if ($sender == $this->ReadPropertyInteger('ManualSwitchID')) {
                 $state = (bool)$data[0];
                 $this->SendDebug(__FUNCTION__, 'Manual Switch changed to: ' . ($state ? 'ON' : 'OFF'), 0);
-                $this->SetState($state, 1);
+                
+                // If turning ON and already in Auto Mode, treat as Motion (Reset Timer)
+                if ($state && GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+                    $this->CycleScenes();
+                } 
+                $this->UpdateState($state, 1);
                 return;
             }
 
@@ -284,7 +301,14 @@ class KnxLogicLight extends IPSModule
             if ($sender == $this->ReadPropertyInteger('AutoSwitchID')) {
                 $state = (bool)$data[0];
                 $this->SendDebug(__FUNCTION__, 'Auto Switch triggered: ' . ($state ? 'ON' : 'OFF'), 0);
-                $this->SetState($state, 0);
+                
+                // If turning ON and already in Auto Mode, treat as Motion (Reset Timer)
+                if ($state && !GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+                    $this->CycleScenes();
+                    $this->UpdateMotionTime();
+                } else {
+                    $this->UpdateState($state, 0);
+                }
                 return;
             }
 
@@ -308,10 +332,14 @@ class KnxLogicLight extends IPSModule
 
                     if ($mode == 1) {
                         // Manual Mode
-                        $this->SetState(null, 1);
+                        $this->UpdateState(null, 1);
                     } else {
                         // Auto Mode
-                        $this->SetState(true, 0);
+                        if (!GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+                            $this->UpdateMotionTime();
+                        } else {
+                            $this->UpdateState(true, 0);
+                        }
                     }
                     return;
                 }
@@ -357,11 +385,15 @@ class KnxLogicLight extends IPSModule
                 $CurerentMode = GetValueBoolean($this->GetIDForIdent('ManualActive'));
                 if ($val != $sceneOff) {
                     $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
-                    $this->SetState(true, ($CurerentMode ? 0 : 1), false);
+                    if (!$CurerentMode) { // Already Auto
+                        $this->UpdateMotionTime();
+                    } else {
+                        $this->UpdateState(true, ($CurerentMode ? 0 : 1));
+                    }
                 } else { // $val == $sceneOff
                     // When turned off externally, we can go back to auto mode immediately
                     $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. Switching to auto mode.', 0);
-                    $this->SetState(false, ($CurerentMode ? 0 : 1), false);
+                    $this->UpdateState(false, ($CurerentMode ? 0 : 1));
                 }
                 return;
             }
@@ -388,15 +420,7 @@ class KnxLogicLight extends IPSModule
                     // Only react to ON (Motion detected)
                     if ($value) {
                         $this->SendDebug(__FUNCTION__, 'Motion detected', 0);
-                        $this->SetBuffer('MotionActive', '1');
-                        $duration = $this->GetMotionDuration();
-                        $this->SetTimerInterval('MotionTimer', $duration * 1000);
-                        
-                        SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
-                        $this->SetBuffer('LastUpdateTime', (string)time());
-                        
-                        $this->StartUpdateTimer();
-                        $this->CheckPresence();
+                        $this->UpdateMotionTime();
                         $this->SendDebug(__FUNCTION__, 'Motion timer set to ' . $duration . ' seconds', 0);
                     }
                 } else { // Presence (State)
@@ -404,6 +428,19 @@ class KnxLogicLight extends IPSModule
                 }
             }
         }
+    }
+
+    private function UpdateMotionTime()
+    {
+        $this->SetBuffer('MotionActive', '1');
+        $duration = $this->GetMotionDuration();
+        $this->SetTimerInterval('MotionTimer', $duration * 1000);
+        
+        SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
+        $this->SetBuffer('LastUpdateTime', (string)time());
+        
+        $this->StartUpdateTimer();
+        $this->CheckPresence();
     }
 
     public function MotionTimerExpired()
@@ -438,7 +475,8 @@ class KnxLogicLight extends IPSModule
     public function ManualTimerExpired()
     {
         $this->SendDebug(__FUNCTION__, 'Manual timer expired', 0);
-        $this->SetState(true, 0);
+        $this->UpdateState(null, 0);
+        $this->CheckPresence();
     }
 
     private function StartUpdateTimer()
@@ -469,6 +507,12 @@ class KnxLogicLight extends IPSModule
     private function GetSceneForState(bool $State): int
     {
         if ($State) {
+            // Check for active sequence override
+            $seqScene = $this->GetBuffer('ActiveSequenceScene');
+            if ($seqScene !== '') {
+                return (int)$seqScene;
+            }
+
             $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
             $isDay = true;
             if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
@@ -476,6 +520,8 @@ class KnxLogicLight extends IPSModule
             }
             return $isDay ? $this->ReadPropertyInteger('SceneOn') : $this->ReadPropertyInteger('SceneOnNight');
         } else {
+            $this->SetBuffer('ActiveSequenceScene', '');
+
             $masterScene = $this->GetBuffer('MasterScene');
             if ($masterScene !== '') {
                 $this->SendDebug(__FUNCTION__, 'Reverting to Master Scene: ' . $masterScene, 0);
@@ -485,7 +531,48 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function SendKNXScene(bool $State)
+    private function CycleScenes()
+    {
+        $now = microtime(true);
+        $lastCycle = (float)$this->GetBuffer('LastCycleTime');
+        if (($now - $lastCycle) < 0.5) {
+            $this->SendDebug(__FUNCTION__, 'Ignored: CycleScenes called too quickly', 0);
+            return;
+        } else {
+            $this->SetBuffer('LastCycleTime', (string)$now);
+        }
+        
+
+        $sequence = json_decode($this->ReadPropertyString('SceneSequence'), true);
+        $this->SendDebug(__FUNCTION__, 'Cycling Scenes in Sequence: ' . json_encode($sequence), 0);
+        if (empty($sequence)) return;
+
+        $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
+        $currentScene = -1;
+        if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
+            $currentScene = GetValueInteger($sceneVar);
+        }
+        
+        $foundIndex = -1;
+        foreach ($sequence as $index => $item) {
+            if ($item['SceneID'] == $currentScene) {
+                $foundIndex = $index;
+                break;
+            }
+        }
+
+        if ($foundIndex != -1) {
+            $nextIndex = ($foundIndex + 1) % count($sequence);
+            $nextScene = (int)$sequence[$nextIndex]['SceneID'];
+        } else {
+            $nextScene = (int)$sequence[0]['SceneID'];
+        }
+
+        $this->SetBuffer('ActiveSequenceScene', (string)$nextScene);#
+        $this->SendDebug(__FUNCTION__, 'Next Scene in Sequence: ' . $nextScene, 0);
+    }
+
+    private function SendScene(bool $State)
     {
         $scene = $this->GetSceneForState($State);
         $this->WriteKNXScene($scene);
@@ -503,81 +590,97 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function SetState(?bool $State, int $Mode, bool $SendKNX = true)
+    private function UpdateState(?bool $State, int $Mode)
     {
-        // $Mode: 0 = Auto, 1 = Manual
-        // $State: true = ON/Active, false = OFF/Inactive, null = Keep current
+        // $Mode: 0 = Auto, 1 = Manual, -1 = Keep Current
+        // $State: true = ON/Present, false = OFF/Absent, null = Keep Current
+
+        $currentMode = GetValueBoolean($this->GetIDForIdent('ManualActive')) ? 1 : 0;
+        $targetMode = ($Mode === -1) ? $currentMode : $Mode;
+
+        $currentPresence = GetValueBoolean($this->GetIDForIdent('PresenceState'));
+        $targetPresence = ($State === null) ? $currentPresence : $State;
         
-        $timerActive = false;
+        if ($State !== null) {
+            SetValueBoolean($this->GetIDForIdent('PresenceState'), $targetPresence);
+        }
 
-        if ($Mode == 1) { // Manual
-            $this->SendDebug(__FUNCTION__, 'Switching to Manual Mode. State: ' . ($State === null ? 'Keep' : ($State ? 'ON' : 'OFF')), 0);
-            
-            SetValueBoolean($this->GetIDForIdent('ManualActive'), true);
-            
-            $outID = $this->ReadPropertyInteger('ManualStateOutputID');
-            if ($outID > 0 && IPS_VariableExists($outID)) {
-                RequestAction($outID, true);
-            }
-
-            // Start Manual Timer
-            $duration = $this->ReadPropertyInteger('ManualDuration');
-            $this->SetTimerInterval('ManualTimer', $duration * 1000);
-            
-            // Update Remaining Time
-            SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
-            $this->SetBuffer('LastUpdateTime', (string)time());
-            $timerActive = true;
-
-            // Stop Motion Timer
-            $this->SetTimerInterval('MotionTimer', 0);
-            $this->SetBuffer('MotionActive', '0');
-
-            if ($State !== null) {
-                SetValueBoolean($this->GetIDForIdent('PresenceState'), $State);
+        // --- Mode Switching Logic ---
+        if ($targetMode != $currentMode) {
+            $this->SetBuffer('ActiveSequenceScene', '');
+            if ($targetMode == 1) { // Switching to Manual
+                $this->SendDebug(__FUNCTION__, 'Switching to Manual Mode', 0);
+                SetValueBoolean($this->GetIDForIdent('ManualActive'), true);
                 
-                if ($SendKNX) {
-                    $this->SendKNXScene($State);
-                }
-            }
-
-        } else { // Auto
-            $this->SendDebug(__FUNCTION__, 'Switching to Auto Mode. Active: ' . ($State ? 'Yes' : 'No'), 0);
-            
-            SetValueBoolean($this->GetIDForIdent('ManualActive'), false);
-            $this->SetTimerInterval('ManualTimer', 0);
-
-            $outID = $this->ReadPropertyInteger('ManualStateOutputID');
-            if ($outID > 0 && IPS_VariableExists($outID)) {
-                RequestAction($outID, false);
-            }
-
-            if ($State) {
-                // Auto Mode Active / Started / Fallback
-                // Start Motion Timer (Nachlaufzeit)
-                $duration = $this->GetMotionDuration();
-                $this->SetTimerInterval('MotionTimer', $duration * 1000);
-                $this->SetBuffer('MotionActive', '1');
-                
-                SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
-                $this->SetBuffer('LastUpdateTime', (string)time());
-                $timerActive = true;
-            } else {
-                // Auto Mode Stopped / Reset
+                // Stop Motion Timer
                 $this->SetTimerInterval('MotionTimer', 0);
                 $this->SetBuffer('MotionActive', '0');
                 
-                SetValueInteger($this->GetIDForIdent('RemainingTime'), 0);
+                // Start Manual Timer
+                $duration = $this->ReadPropertyInteger('ManualDuration');
+                $this->SetTimerInterval('ManualTimer', $duration * 1000);
+                SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
+                $this->SetBuffer('LastUpdateTime', (string)time());
+                $this->StartUpdateTimer();
+                
+                // Update Manual Output
+                $outID = $this->ReadPropertyInteger('ManualStateOutputID');
+                if ($outID > 0 && IPS_VariableExists($outID)) RequestAction($outID, true);
+
+            } else { // Switching to Auto
+                $this->SendDebug(__FUNCTION__, 'Switching to Auto Mode', 0);
+                SetValueBoolean($this->GetIDForIdent('ManualActive'), false);
+                
+                // Stop Manual Timer
+                $this->SetTimerInterval('ManualTimer', 0);
+                
+                // Update Manual Output
+                $outID = $this->ReadPropertyInteger('ManualStateOutputID');
+                if ($outID > 0 && IPS_VariableExists($outID)) RequestAction($outID, false);
+                
+                // If switching to Auto with State=true (Auto Switch ON), treat as Motion
+                if ($State === true) {
+                     $this->UpdateMotionTime();
+                } else {
+                     // Reset Motion Timer/State if switching to Auto OFF
+                     $this->SetTimerInterval('MotionTimer', 0);
+                     $this->SetBuffer('MotionActive', '0');
+                     SetValueInteger($this->GetIDForIdent('RemainingTime'), 0);
+                     $this->SetTimerInterval('UpdateTimer', 0);
+                }
+            }
+        } else {
+            // Mode not changing
+            if ($targetMode == 1 && $Mode == 1 && $State === true) {
+                 // Re-trigger Manual ON -> Reset Timer
+                 $duration = $this->ReadPropertyInteger('ManualDuration');
+                 $this->SetTimerInterval('ManualTimer', $duration * 1000);
+                 SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
+                 $this->SetBuffer('LastUpdateTime', (string)time());
+                $this->SendDebug(__FUNCTION__, 'Manual Mode: Timer reset on re-trigger', 0);
+
+
             }
             
-            $this->CheckPresence();
         }
 
-        // Manage Update Timer
-        if ($timerActive) {
-            $this->StartUpdateTimer();
+        // --- Output Logic ---
+        if ($targetMode == 1) {
+            // Manual Mode: Output follows PresenceState directly
+            $this->SendScene($targetPresence);
         } else {
-            $this->SetTimerInterval('UpdateTimer', 0);
+            // Auto Mode: Output follows PresenceState AND Brightness Logic
+            if ($targetPresence) {
+                $brightnessBlock = ($this->GetBuffer('BrightnessBlock') == '1');
+                if ($brightnessBlock) {
+                    $this->SendDebug(__FUNCTION__, 'Auto Mode: Blocked by Brightness', 0);
+                    $this->SendScene(false);
+                } else {
+                    $this->SendScene(true);
+                }
+            } else {
+                $this->SendScene(false);
+            }
         }
     }
 
@@ -620,59 +723,15 @@ class KnxLogicLight extends IPSModule
             }
         }
 
-        // Check current state
-        $stateVarID = $this->GetIDForIdent('PresenceState');
-        $currentState = GetValueBoolean($stateVarID);
-        
-        if ($isPresent != $currentState) {
-            $this->SendDebug(__FUNCTION__, 'Presence state changed to: ' . ($isPresent ? 'Present' : 'Not Present'), 0);
-            
-            // Determine Target State
-            $targetState = false;
-            if ($isPresent) {
-                // BECAME present. Check if we should turn on.
-                $autoOn = $this->ReadPropertyBoolean('AutoOnOnBrightness');
-                $isBrightEnough = false;
-                if ($autoOn) {
-                    $currentBrightness = GetValueFloat($this->GetIDForIdent('CurrentBrightness'));
-                    $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
-                    $threshold = $isDay ? $this->ReadPropertyInteger('BrightnessThresholdDay') : $this->ReadPropertyInteger('BrightnessThresholdNight');
-                    if ($currentBrightness >= $threshold) {
-                        $isBrightEnough = true;
-                    }
-                }
-
-                if ($isBrightEnough) {
-                    $this->SendDebug(__FUNCTION__, 'Presence detected, but it is bright enough. Light remains off.', 0);
-                    $targetState = false;
-                } else {
-                    $targetState = true;
-                }
-            } else {
-                // BECAME absent.
-                $targetState = false;
-            }
-
-            // Send to KNX
-            $this->SendKNXScene($targetState);
-
-            // Update internal state AFTER sending command to prevent race conditions with feedback
-            SetValueBoolean($stateVarID, $isPresent);
-        }
+        // Call UpdateState with calculated presence
+        // Mode is 0 (Auto) because CheckPresence is only relevant for Auto
+        $this->UpdateState($isPresent, 0);
     }
 
     public function SimulateMotion()
     {
         $this->SendDebug(__FUNCTION__, 'Simulated Motion detected', 0);
-        $this->SetBuffer('MotionActive', '1');
-        $duration = $this->GetMotionDuration();
-        $this->SetTimerInterval('MotionTimer', $duration * 1000);
-
-        SetValueInteger($this->GetIDForIdent('RemainingTime'), $duration);
-        $this->SetBuffer('LastUpdateTime', (string)time());
-
-        $this->StartUpdateTimer();
-        $this->CheckPresence();
+        $this->UpdateMotionTime();
     }
 
     private function GetMotionDuration()
@@ -724,29 +783,37 @@ class KnxLogicLight extends IPSModule
 
     private function CheckBrightnessLogic()
     {
-        if (GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
-            return;
-        }
-        // This logic is for changes while presence is already active
-        if (!GetValueBoolean($this->GetIDForIdent('PresenceState'))) {
-            return;
-        }
         $currentBrightness = GetValueFloat($this->GetIDForIdent('CurrentBrightness'));
         $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
         $threshold = $isDay ? $this->ReadPropertyInteger('BrightnessThresholdDay') : $this->ReadPropertyInteger('BrightnessThresholdNight');
-        $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
-        if ($sceneVar <= 0 || !IPS_VariableExists($sceneVar)) {
-            return;
-        }
-        $currentScene = GetValueInteger($sceneVar);
-        $sceneOff = $this->GetSceneForState(false);
-        // Check if we should turn OFF because it got too bright
-        $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
         $hysteresis = $this->ReadPropertyInteger('BrightnessHysteresis');
-        if ($autoOff && $currentBrightness > ($threshold + $hysteresis) && $currentScene != $sceneOff) {
-            $this->SendDebug(__FUNCTION__, 'Turning OFF due to high brightness (' . $currentBrightness . ' > ' . ($threshold + $hysteresis) . ')', 0);
-            $this->WriteKNXScene($sceneOff);
-            return;
+        
+        $lightState = GetValueBoolean($this->GetIDForIdent('LightState'));
+        $autoOn = $this->ReadPropertyBoolean('AutoOnOnBrightness');
+        $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
+
+        $isTooBright = false;
+        
+        if ($lightState) {
+            // Light is ON: Check if we should turn OFF
+            if ($autoOff && $currentBrightness > ($threshold + $hysteresis)) {
+                $isTooBright = true;
+            }
+        } else {
+            // Light is OFF: Check if we should BLOCK turning ON
+            if ($autoOn && $currentBrightness >= $threshold) {
+                $isTooBright = true;
+            }
+        }
+        
+        $oldBlock = $this->GetBuffer('BrightnessBlock');
+        $newBlock = $isTooBright ? '1' : '0';
+        
+        if ($oldBlock !== $newBlock) {
+            $this->SetBuffer('BrightnessBlock', $newBlock);
+            $this->SendDebug(__FUNCTION__, 'Brightness Block changed to: ' . $newBlock, 0);
+            // Trigger state update to apply brightness logic
+            $this->UpdateState(null, -1);
         }
     }
 

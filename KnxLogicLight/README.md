@@ -16,6 +16,7 @@ Dieses Modul stellt eine Logik zur Steuerung von KNX-Lichtszenen in einem Raum b
 *   **Automatische Lichtsteuerung:** Schaltet Lichtszenen basierend auf Präsenz- und Bewegungsmeldern.
 *   **Tag/Nacht-Modus:** Verwendet unterschiedliche Szenen und Nachlaufzeiten für Tag- und Nachtbetrieb.
 *   **Manuelle Steuerung:** Ermöglicht die manuelle Übersteuerung der Automatik durch Taster oder Szenenaufrufe. Der manuelle Modus hat eine einstellbare Dauer, nach der die Automatik wieder aktiv wird.
+*   **Szenen-Durchschaltung (Cycling):** Ermöglicht das Durchschalten einer definierten Szenenabfolge durch erneutes Betätigen des Tasters.
 *   **Master/Client-Funktionalität:**
     *   **Als Master:** Bleibt aktiv, solange verknüpfte Client-Instanzen (z.B. angrenzende Räume) Präsenz melden. Sendet Szenen an Clients weiter.
     *   **Helligkeitssteuerung:** Berücksichtigt die Umgebungshelligkeit, um unnötiges Einschalten zu vermeiden und das Licht bei ausreichender Helligkeit automatisch auszuschalten.
@@ -41,6 +42,12 @@ Wird über den *Manuellen Schalter* oder einen *Szenen-Eingang* (konfiguriert al
 *   Sensoren werden in diesem Modus ignoriert (das Licht bleibt im gewählten Zustand).
 *   Ein Timer (`ManualDuration`) läuft ab. Nach Ablauf fällt das Modul automatisch in den Automatik-Modus zurück und prüft erneut die Sensoren.
 *   Der *Automatik Schalter* kann genutzt werden, um den manuellen Modus sofort zu beenden.
+
+**Szenen-Durchschaltung (Cycling)**
+Ist eine **Szenen Sequenz** konfiguriert, kann durch erneutes Senden eines "EIN"-Befehls zur nächsten Szene in der Liste geschaltet werden.
+*   Im **Manuellen Modus**: Durch erneutes Betätigen des *Manuellen Schalters*.
+*   Im **Automatik Modus**: Durch erneutes Betätigen des *Automatik Schalters* (sofern dieser als Taster für "Licht An" genutzt wird).
+Eine integrierte Sperrzeit verhindert, dass Szenen bei Prellen oder zu schnellem Drücken übersprungen werden.
 
 ### 3. Voraussetzungen
 
@@ -85,6 +92,7 @@ Feld                               | Beschreibung
 Szene bei Präsenz (EIN) - Tag      | Szenennummer für Tag.
 Szene bei Präsenz (EIN) - Nacht    | Szenennummer für Nacht.
 Szene bei Abwesenheit (AUS)        | Szenennummer für Aus.
+Szenen Sequenz (Durchschalten)     | Liste von Szenen, die durch wiederholtes Schalten durchlaufen werden.
 Bewegungsmelder Nachlaufzeit       | Zeit in Sekunden, wie lange Bewegung nachwirkt (getrennt für Tag/Nacht).
 Aktualisierungsintervall           | Intervall für die Restzeitanzeige.
 Helligkeitsschwelle (Tag/Nacht)    | Lux-Wert, unter dem das Licht bei Präsenz eingeschaltet wird.

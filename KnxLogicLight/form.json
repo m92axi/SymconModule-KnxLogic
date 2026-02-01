@@ -281,6 +281,27 @@
                 },
                 {
                     "type": "List",
+                    "name": "SceneSequence",
+                    "caption": "Scene Sequence (Cycle)",
+                    "rowCount": 3,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Scene ID",
+                            "name": "SceneID",
+                            "width": "auto",
+                            "add": 0,
+                            "edit": {
+                                "type": "NumberSpinner",
+                                "minimum": 0,
+                                "maximum": 63
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "List",
                     "name": "ClientInstances",
                     "caption": "Client Instances (KnxLogicLight)",
                     "rowCount": 5,

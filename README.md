@@ -14,3 +14,4 @@ Folgende Module beinhaltet diese Bibliothek:
 - 0.1: Initialversion
 - 0.2: Erweiterung um Tag/Nacht-Logik, manuelle/automatische Umschaltung und Master/Client-Funktionalität.
 - 0.3: Helligkeitssteuerung mit gewichteten Sensoren (Float/Integer) und Schwellenwerten für Tag/Nacht hinzugefügt.
+- 0.4: Szenen-Durchschaltung (Cycling) hinzugefügt.
