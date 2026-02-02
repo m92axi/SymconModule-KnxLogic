@@ -333,15 +333,11 @@ class KnxLogicLight extends IPSModule
 
                     if ($mode == 1) {
                         // Manual Mode
-                        $this->UpdateState(null, 1);
+                        $this->UpdateState(null, 1, false);
                     } else {
                         // Auto Mode
-                        if (!GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
-                            $this->UpdateMotionTime();
-                            $this->UpdateState($this->CheckPresence(), -1);
-                        } else {
-                            $this->UpdateState(true, 0);
-                        }
+                        $this->UpdateMotionTime();
+                        $this->UpdateState(true,  0, false);
                     }
                     return;
                 }
@@ -387,17 +383,11 @@ class KnxLogicLight extends IPSModule
                 $CurerentMode = GetValueBoolean($this->GetIDForIdent('ManualActive'));
                 if ($val != $sceneOff) {
                     $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
-                    if (!$CurerentMode) { // Already Auto
-                        $this->UpdateMotionTime();
-                        //$this->UpdateState(null, -1);
-                    } else {
-                        // Switch to Auto Mode 
-                        $this->UpdateState(null, 1);
-                    }
+                    $this->UpdateState(null, 1, false);
                 } else { // $val == $sceneOff
                     // When turned off externally, we can go back to auto mode immediately
                     $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. Switching to auto mode.', 0);
-                    $this->UpdateState(false, ($CurerentMode ? 0 : 1));
+                    $this->UpdateState(null, 0, false);
                 }
                 return;
             }
@@ -594,10 +584,11 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function UpdateState(?bool $State, int $Mode)
+    private function UpdateState(?bool $State, int $Mode, bool $SendScene = true)
     { // UpdateState: Updates the state of the light and sends the scene to the KNX bus.
         // $Mode: 0 = Auto, 1 = Manual, -1 = Keep Current
         // $State: true = ON/Present, false = OFF/Absent, null = Keep Current
+        // $SendScene: true = Send Scene to KNX, false = Only update internal state
 
         $currentMode = GetValueBoolean($this->GetIDForIdent('ManualActive')) ? 1 : 0;
         $targetMode = ($Mode === -1) ? $currentMode : $Mode;
@@ -645,7 +636,7 @@ class KnxLogicLight extends IPSModule
                 // If switching to Auto with State=true (Auto Switch ON), treat as Motion
                 if ($State === true) {
                      $this->UpdateMotionTime();
-                     $this->UpdateState($this->CheckPresence(), -1);
+                     //$this->UpdateState($this->CheckPresence(), -1);
                 } else {
                      // Reset Motion Timer/State if switching to Auto OFF
                      $this->SetTimerInterval('MotionTimer', 0);
@@ -670,21 +661,23 @@ class KnxLogicLight extends IPSModule
         }
 
         // --- Output Logic ---
-        if ($targetMode == 1) {
-            // Manual Mode: Output follows PresenceState directly
-            $this->SendScene($targetPresence);
-        } else {
-            // Auto Mode: Output follows PresenceState AND Brightness Logic
-            if ($targetPresence) {
-                $brightnessBlock = ($this->GetBuffer('BrightnessBlock') == '1');
-                if ($brightnessBlock) {
-                    $this->SendDebug(__FUNCTION__, 'Auto Mode: Blocked by Brightness', 0);
-                    $this->SendScene(false);
-                } else {
-                    $this->SendScene(true);
-                }
+        if ($SendScene) {
+            if ($targetMode == 1) {
+                // Manual Mode: Output follows PresenceState directly
+                $this->SendScene($targetPresence);
             } else {
-                $this->SendScene(false);
+                // Auto Mode: Output follows PresenceState AND Brightness Logic
+                if ($targetPresence) {
+                    $brightnessBlock = ($this->GetBuffer('BrightnessBlock') == '1');
+                    if ($brightnessBlock) {
+                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Blocked by Brightness', 0);
+                        $this->SendScene(false);
+                    } else {
+                        $this->SendScene(true);
+                    }
+                } else {
+                    $this->SendScene(false);
+                }
             }
         }
     }
