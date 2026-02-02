@@ -264,7 +264,7 @@ class KnxLogicLight extends IPSModule
      */
     public function MessageSink($timestamp, $sender, $message, $data)
     { // MessageSink: Handles messages received from registered objects.
-        $this->SendDebug(__FUNCTION__, 'Sender: ' . $sender . ', Message: ' . $message . ', Data: ' . json_encode($data), 0);
+        $this->SendDebug(__FUNCTION__, 'Sender: ' . IPS_GetName($sender) . ', Message: ' . $message . ', Data: ' . json_encode($data), 0);
         if ($message === VM_UPDATE) {
             // Check Brightness Sensors
             $brightnessSensors = json_decode($this->ReadPropertyString('BrightnessSensors'), true);
@@ -289,7 +289,7 @@ class KnxLogicLight extends IPSModule
                 $state = (bool)$data[0];
                 $this->SendDebug(__FUNCTION__, 'Manual Switch changed to: ' . ($state ? 'ON' : 'OFF'), 0);
                 
-                // If turning ON and already in Auto Mode, treat as Motion (Reset Timer)
+                // If turning ON and already in Man Mode, treat as Motion (Reset Timer)
                 if ($state && GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
                     $this->CycleScenes();
                 } 
@@ -329,7 +329,7 @@ class KnxLogicLight extends IPSModule
             foreach ($sceneInputs as $sceneInput) {
                 if ($sceneInput['VariableID'] == $sender) {
                     $mode = isset($sceneInput['Mode']) ? (int)$sceneInput['Mode'] : 1;
-                    $this->SendDebug(__FUNCTION__, 'Scene Input triggered: ' . $sender . ', Mode: ' . ($mode == 1 ? 'Manual' : 'Auto'), 0);
+                    $this->SendDebug(__FUNCTION__, 'Scene Input triggered: ' . IPS_GetName($sender) . ', Mode: ' . ($mode == 1 ? 'Manual' : 'Auto'), 0);
 
                     if ($mode == 1) {
                         // Manual Mode
@@ -350,6 +350,11 @@ class KnxLogicLight extends IPSModule
                 if ($clientID > 0 && IPS_InstanceExists($clientID)) {
                     $presenceVarID = @IPS_GetObjectIDByIdent('PresenceState', $clientID);
                     if ($sender == $presenceVarID) {
+                        if (GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+                            $this->SendDebug(__FUNCTION__, 'Client Instance update ignored (Manual Active)', 0);
+                            return;
+                        }
+                        $this->SendDebug(__FUNCTION__, 'Client Instance Presence update from: ' . $sender, 0);
                         $this->UpdateState($this->CheckPresence(), -1);
                         break;
                     }
@@ -381,13 +386,13 @@ class KnxLogicLight extends IPSModule
                 $val = (int)$data[0];
                 $sceneOff = $this->ReadPropertyInteger('SceneOff');
                 $CurerentMode = GetValueBoolean($this->GetIDForIdent('ManualActive'));
-                if ($val != $sceneOff) {
-                    $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
-                    $this->UpdateState(null, 1, false);
+                if ($val != $sceneOff ) {
+                    $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. ', 0);
+                    $this->UpdateState(true, -1, false);
                 } else { // $val == $sceneOff
                     // When turned off externally, we can go back to auto mode immediately
-                    $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. Switching to auto mode.', 0);
-                    $this->UpdateState(null, 0, false);
+                    $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. ', 0);
+                    $this->UpdateState(false, -1, false);
                 }
                 return;
             }
@@ -397,7 +402,7 @@ class KnxLogicLight extends IPSModule
                 if ($sensor['VariableID'] == $sender) {
                     $isSensor = true;
                     $sensorType = $sensor['SensorType'];
-                    $this->SendDebug(__FUNCTION__, 'Sensor detected: ' . $sender . ', Type: ' . $sensorType, 0);
+                    $this->SendDebug(__FUNCTION__, 'Sensor detected: ' . IPS_GetName($sender) . ', Type: ' . $sensorType, 0);
                     break;
                 }
             }
@@ -596,9 +601,8 @@ class KnxLogicLight extends IPSModule
         $currentPresence = GetValueBoolean($this->GetIDForIdent('PresenceState'));
         $targetPresence = ($State === null) ? $currentPresence : $State;
         
-        if ($State !== null) {
-            SetValueBoolean($this->GetIDForIdent('PresenceState'), $targetPresence);
-        }
+        $this->SendDebug(__FUNCTION__, 'UpdateState called. CurrentMode: ' . $currentMode . ', TargetMode: ' . $targetMode . ', CurrentPresence: ' . ($currentPresence ? 'Present' : 'Absent') . ', TargetPresence: ' . ($targetPresence ? 'Present' : 'Absent'), 0);
+        
 
         // --- Mode Switching Logic ---
         if ($targetMode != $currentMode) {
@@ -647,7 +651,7 @@ class KnxLogicLight extends IPSModule
             }
         } else {
             // Mode not changing
-            if ($targetMode == 1 && $Mode == 1 && $State === true) {
+            if ($targetMode == 1 ) {
                  // Re-trigger Manual ON -> Reset Timer
                  $duration = $this->ReadPropertyInteger('ManualDuration');
                  $this->SetTimerInterval('ManualTimer', $duration * 1000);
@@ -656,6 +660,14 @@ class KnxLogicLight extends IPSModule
                 $this->SendDebug(__FUNCTION__, 'Manual Mode: Timer reset on re-trigger', 0);
 
 
+            }
+            if ($targetMode == 0 ) {
+                // Auto Mode
+                if ($State === true) {
+                    // Re-trigger Auto ON -> Reset Motion Timer
+                    $this->UpdateMotionTime();
+                    $this->SendDebug(__FUNCTION__, 'Auto Mode: Motion Timer reset on re-trigger', 0);
+                }
             }
             
         }
@@ -679,6 +691,10 @@ class KnxLogicLight extends IPSModule
                     $this->SendScene(false);
                 }
             }
+        }
+
+        if ($State !== null) {
+            SetValueBoolean($this->GetIDForIdent('PresenceState'), $targetPresence);
         }
     }
 
@@ -823,6 +839,7 @@ class KnxLogicLight extends IPSModule
     public function SceneFromMaster(int $Scene, bool $PresenceState)
     { // SceneFromMaster: Sets the scene from the master instance.
         $this->SendDebug(__FUNCTION__, 'Scene: ' . $Scene . ', Presence: ' . ($PresenceState ? 'true' : 'false'), 0);
+
 
         if ($PresenceState) {
             $this->SetBuffer('MasterScene', (string)$Scene);
