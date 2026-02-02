@@ -389,9 +389,10 @@ class KnxLogicLight extends IPSModule
                     $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
                     if (!$CurerentMode) { // Already Auto
                         $this->UpdateMotionTime();
-                        $this->UpdateState($this->CheckPresence(), -1);
+                        //$this->UpdateState(null, -1);
                     } else {
-                        $this->UpdateState(true, ($CurerentMode ? 0 : 1));
+                        // Switch to Auto Mode 
+                        $this->UpdateState(null, 1);
                     }
                 } else { // $val == $sceneOff
                     // When turned off externally, we can go back to auto mode immediately
@@ -728,6 +729,10 @@ class KnxLogicLight extends IPSModule
 
     public function SimulateMotion()
     { // SimulateMotion: Simulates motion detection.
+        if (GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
+            $this->SendDebug(__FUNCTION__, 'Simulated Motion detected (Manual Active)', 0);
+            return;
+        }
         $this->SendDebug(__FUNCTION__, 'Simulated Motion detected', 0);
         $this->UpdateMotionTime();
         $this->UpdateState($this->CheckPresence(), -1);
