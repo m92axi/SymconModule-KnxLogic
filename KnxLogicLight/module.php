@@ -11,7 +11,7 @@ class KnxLogicLight extends IPSModule
      * Therefore, status variables and module properties which the module requires permanently should be created here.
      */
     public function Create()
-    {
+    { // Create: Creates the instance and registers properties and variables.
         //Never delete this line!
         parent::Create();
 
@@ -56,7 +56,7 @@ class KnxLogicLight extends IPSModule
      * The function is not called when exiting IP-Symcon.
      */
     public function Destroy()
-    {
+    { // Destroy: Is called when the instance is deleted or updated.
         parent::Destroy();
     }
 
@@ -66,7 +66,7 @@ class KnxLogicLight extends IPSModule
      * In this case, the "form.json" on the file system is completely ignored.
      */
     public function GetConfigurationForm()
-    {
+    { // GetConfigurationForm: Returns the configuration form for the instance.
         // Get Form
         $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
 
@@ -108,7 +108,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function RemoveNightOptions(&$elements)
-    {
+    { // RemoveNightOptions: Removes night-related options from the configuration form.
         foreach ($elements as &$element) {
             if (isset($element['items'])) {
                 $newItems = [];
@@ -125,7 +125,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function UpdateFormElements(&$elements, $options)
-    {
+    { // UpdateFormElements: Updates the form elements with options retrieved from the scene variable profile.
         foreach ($elements as &$element) {
             if (isset($element['items'])) {
                 $this->UpdateFormElements($element['items'], $options);
@@ -156,7 +156,7 @@ class KnxLogicLight extends IPSModule
      * Is executed when "Apply" is pressed on the configuration page and immediately after the instance has been created.
      */
     public function ApplyChanges()
-    {
+    { // ApplyChanges: Is executed when "Apply" is pressed on the configuration page.
         parent::ApplyChanges();
 
         // Unregister all messages
@@ -263,7 +263,7 @@ class KnxLogicLight extends IPSModule
      * @param array{0:mixed,1:bool,2:mixed,3:int} $data Data of the message
      */
     public function MessageSink($timestamp, $sender, $message, $data)
-    {
+    { // MessageSink: Handles messages received from registered objects.
         $this->SendDebug(__FUNCTION__, 'Sender: ' . $sender . ', Message: ' . $message . ', Data: ' . json_encode($data), 0);
         if ($message === VM_UPDATE) {
             // Check Brightness Sensors
@@ -306,6 +306,7 @@ class KnxLogicLight extends IPSModule
                 if ($state && !GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
                     $this->CycleScenes();
                     $this->UpdateMotionTime();
+                    $this->UpdateState($this->CheckPresence(), -1);
                 } else {
                     $this->UpdateState($state, 0);
                 }
@@ -337,6 +338,7 @@ class KnxLogicLight extends IPSModule
                         // Auto Mode
                         if (!GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
                             $this->UpdateMotionTime();
+                            $this->UpdateState($this->CheckPresence(), -1);
                         } else {
                             $this->UpdateState(true, 0);
                         }
@@ -352,7 +354,7 @@ class KnxLogicLight extends IPSModule
                 if ($clientID > 0 && IPS_InstanceExists($clientID)) {
                     $presenceVarID = @IPS_GetObjectIDByIdent('PresenceState', $clientID);
                     if ($sender == $presenceVarID) {
-                        $this->CheckPresence();
+                        $this->UpdateState($this->CheckPresence(), -1);
                         break;
                     }
                 }
@@ -387,6 +389,7 @@ class KnxLogicLight extends IPSModule
                     $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. Activating auto mode.', 0);
                     if (!$CurerentMode) { // Already Auto
                         $this->UpdateMotionTime();
+                        $this->UpdateState($this->CheckPresence(), -1);
                     } else {
                         $this->UpdateState(true, ($CurerentMode ? 0 : 1));
                     }
@@ -421,17 +424,18 @@ class KnxLogicLight extends IPSModule
                     if ($value) {
                         $this->SendDebug(__FUNCTION__, 'Motion detected', 0);
                         $this->UpdateMotionTime();
+                        $this->UpdateState($this->CheckPresence(), -1);
                         $this->SendDebug(__FUNCTION__, 'Motion timer set to ' . $duration . ' seconds', 0);
                     }
                 } else { // Presence (State)
-                    $this->CheckPresence();
+                    $this->UpdateState($this->CheckPresence(), -1);
                 }
             }
         }
     }
 
     private function UpdateMotionTime()
-    {
+    { // UpdateMotionTime: Updates the motion timer and related variables.
         $this->SetBuffer('MotionActive', '1');
         $duration = $this->GetMotionDuration();
         $this->SetTimerInterval('MotionTimer', $duration * 1000);
@@ -440,11 +444,11 @@ class KnxLogicLight extends IPSModule
         $this->SetBuffer('LastUpdateTime', (string)time());
         
         $this->StartUpdateTimer();
-        $this->CheckPresence();
+        
     }
 
     public function MotionTimerExpired()
-    {
+    { // MotionTimerExpired: Is called when the motion timer expires.
         $this->SendDebug(__FUNCTION__, 'Motion timer expired', 0);
         $this->SetTimerInterval('MotionTimer', 0);
         $this->SetBuffer('MotionActive', '0');
@@ -455,11 +459,11 @@ class KnxLogicLight extends IPSModule
             SetValueInteger($this->GetIDForIdent('RemainingTime'), 0);
         }
 
-        $this->CheckPresence();
+        $this->UpdateState($this->CheckPresence(), -1);
     }
 
     public function UpdateRemainingTime()
-    {
+    { // UpdateRemainingTime: Updates the remaining time variable.
         $lastUpdate = (int)$this->GetBuffer('LastUpdateTime');
         $now = time();
         $diff = $now - $lastUpdate;
@@ -473,14 +477,13 @@ class KnxLogicLight extends IPSModule
     }
 
     public function ManualTimerExpired()
-    {
+    { // ManualTimerExpired: Is called when the manual timer expires.
         $this->SendDebug(__FUNCTION__, 'Manual timer expired', 0);
-        $this->UpdateState(null, 0);
-        $this->CheckPresence();
+        $this->UpdateState($this->CheckPresence(), 0);
     }
 
     private function StartUpdateTimer()
-    {
+    { // StartUpdateTimer: Starts the update timer.
         $this->SendDebug(__FUNCTION__, 'Starting update timer', 0);
         $interval = $this->ReadPropertyInteger('UpdateInterval');
         if ($interval > 0) {
@@ -493,7 +496,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function WriteKNXScene(int $Value)
-    {
+    { // WriteKNXScene: Writes the scene value to the KNX variable.
         $sceneVar = $this->ReadPropertyInteger('SceneVariableID');
         if ($sceneVar > 0 && IPS_VariableExists($sceneVar)) {
             $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
@@ -505,7 +508,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function GetSceneForState(bool $State): int
-    {
+    { // GetSceneForState: Returns the scene number for the given state.
         if ($State) {
             // Check for active sequence override
             $seqScene = $this->GetBuffer('ActiveSequenceScene');
@@ -532,7 +535,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function CycleScenes()
-    {
+    { // CycleScenes: Cycles to the next scene in the configured sequence.
         $now = microtime(true);
         $lastCycle = (float)$this->GetBuffer('LastCycleTime');
         if (($now - $lastCycle) < 0.5) {
@@ -573,7 +576,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function SendScene(bool $State)
-    {
+    { // SendScene: Sends the scene to the KNX bus and client instances.
         $scene = $this->GetSceneForState($State);
         $this->WriteKNXScene($scene);
 
@@ -591,7 +594,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function UpdateState(?bool $State, int $Mode)
-    {
+    { // UpdateState: Updates the state of the light and sends the scene to the KNX bus.
         // $Mode: 0 = Auto, 1 = Manual, -1 = Keep Current
         // $State: true = ON/Present, false = OFF/Absent, null = Keep Current
 
@@ -641,6 +644,7 @@ class KnxLogicLight extends IPSModule
                 // If switching to Auto with State=true (Auto Switch ON), treat as Motion
                 if ($State === true) {
                      $this->UpdateMotionTime();
+                     $this->UpdateState($this->CheckPresence(), -1);
                 } else {
                      // Reset Motion Timer/State if switching to Auto OFF
                      $this->SetTimerInterval('MotionTimer', 0);
@@ -684,12 +688,8 @@ class KnxLogicLight extends IPSModule
         }
     }
 
-    private function CheckPresence()
-    {
-        if (GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
-            return;
-        }
-
+    private function CheckPresence(): bool
+    { // CheckPresence: Checks the presence status based on sensors, motion buffer, and client instances.
         $sensors = json_decode($this->ReadPropertyString('Sensors'), true);
         $isPresent = false;
 
@@ -723,19 +723,18 @@ class KnxLogicLight extends IPSModule
             }
         }
 
-        // Call UpdateState with calculated presence
-        // Mode is 0 (Auto) because CheckPresence is only relevant for Auto
-        $this->UpdateState($isPresent, 0);
+        return $isPresent;
     }
 
     public function SimulateMotion()
-    {
+    { // SimulateMotion: Simulates motion detection.
         $this->SendDebug(__FUNCTION__, 'Simulated Motion detected', 0);
         $this->UpdateMotionTime();
+        $this->UpdateState($this->CheckPresence(), -1);
     }
 
     private function GetMotionDuration()
-    {
+    { // GetMotionDuration: Returns the motion duration based on the day/night switch.
         $daySwitch = $this->ReadPropertyInteger('DayNightSwitchID');
         if ($daySwitch > 0 && IPS_VariableExists($daySwitch)) {
             $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
@@ -747,7 +746,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function CalculateBrightness()
-    {
+    { // CalculateBrightness: Calculates the average brightness based on the configured sensors.
         $brightnessSensors = json_decode($this->ReadPropertyString('BrightnessSensors'), true);
         if (count($brightnessSensors) == 0) {
             // Set to a low value if no sensor is configured, so brightness logic doesn't interfere
@@ -782,7 +781,7 @@ class KnxLogicLight extends IPSModule
     }
 
     private function CheckBrightnessLogic()
-    {
+    { // CheckBrightnessLogic: Checks the brightness logic and updates the light state if necessary.
         $currentBrightness = GetValueFloat($this->GetIDForIdent('CurrentBrightness'));
         $isDay = GetValueBoolean($this->GetIDForIdent('DayState'));
         $threshold = $isDay ? $this->ReadPropertyInteger('BrightnessThresholdDay') : $this->ReadPropertyInteger('BrightnessThresholdNight');
@@ -818,13 +817,13 @@ class KnxLogicLight extends IPSModule
     }
 
     public function ResetMotionTimer()
-    {
+    { // ResetMotionTimer: Resets the motion timer manually.
         $this->SendDebug(__FUNCTION__, 'Motion Timer reset manually', 0);
         $this->MotionTimerExpired();
     }
 
     public function SceneFromMaster(int $Scene, bool $PresenceState)
-    {
+    { // SceneFromMaster: Sets the scene from the master instance.
         $this->SendDebug(__FUNCTION__, 'Scene: ' . $Scene . ', Presence: ' . ($PresenceState ? 'true' : 'false'), 0);
 
         if ($PresenceState) {
@@ -857,7 +856,7 @@ class KnxLogicLight extends IPSModule
      * @param mixed $value The value to be set
      */
     public function RequestAction($ident, $value)
-    {
+    { // RequestAction: Is called when an action is requested for a variable.
         // Debug output
         $this->SendDebug(__FUNCTION__, $ident . ' => ' . $value, 0);
         // TODO: Replace identifier
