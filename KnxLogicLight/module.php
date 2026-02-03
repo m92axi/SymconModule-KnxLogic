@@ -421,7 +421,7 @@ class KnxLogicLight extends IPSModule
                         $this->SendDebug(__FUNCTION__, 'Motion detected', 0);
                         $this->UpdateMotionTime();
                         $this->UpdateState($this->CheckPresence(), -1);
-                        $this->SendDebug(__FUNCTION__, 'Motion timer set to ' . $duration . ' seconds', 0);
+                        $this->SendDebug(__FUNCTION__, 'Motion timer reset', 0);
                     }
                 } else { // Presence (State)
                     $this->UpdateState($this->CheckPresence(), -1);
@@ -679,17 +679,41 @@ class KnxLogicLight extends IPSModule
                 $this->SendScene($targetPresence);
             } else {
                 // Auto Mode: Output follows PresenceState AND Brightness Logic
-                if ($targetPresence) {
-                    $brightnessBlock = ($this->GetBuffer('BrightnessBlock') == '1');
-                    if ($brightnessBlock) {
-                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Blocked by Brightness', 0);
-                        $this->SendScene(false);
-                    } else {
+
+                $brightnessBlock = ($this->GetBuffer('BrightnessBlock') == '1');
+                $oldBrightnessBlock = ($this->GetBuffer('OldBrightnessBlock') =='1');
+
+                
+                //Change in Presence
+                if ($targetPresence != $currentPresence) {
+                    
+                    if ($targetPresence) {
+                        if (!$brightnessBlock) {
+                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Presence change to ON detected and no Brightness Block active', 0);
                         $this->SendScene(true);
+                        } else {
+                            $this->SendDebug(__FUNCTION__, 'Auto Mode: Presence change to ON detected but Brightness Block active', 0);
+                        }
+                    } else {
+                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Presence change to OFF detected', 0);
+                        $this->SendScene(false);
                     }
-                } else {
-                    $this->SendScene(false);
+                }elseif ($brightnessBlock != $oldBrightnessBlock) {
+                    // Change in Brightness Block
+                    if (!$brightnessBlock) {
+                        // Brightness Block turned OFF
+                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Brightness Block turned OFF', 0);
+                        if ($targetPresence) {
+                            $this->SendScene(true);
+                        }
+                    } else {
+                        // Brightness Block turned ON
+                        $this->SendDebug(__FUNCTION__, 'Auto Mode: Brightness Block turned ON', 0);
+                        $this->SendScene(false);
+                    $this->SendDebug(__FUNCTION__, 'Auto Mode: No Presence change detected', 0);
+                    }
                 }
+
             }
         }
 
@@ -820,6 +844,7 @@ class KnxLogicLight extends IPSModule
         }
         
         $oldBlock = $this->GetBuffer('BrightnessBlock');
+        $this->SetBuffer('OldBrightnessBlock', $oldBlock);
         $newBlock = $isTooBright ? '1' : '0';
         
         if ($oldBlock !== $newBlock) {
