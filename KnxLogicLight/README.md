@@ -35,11 +35,11 @@ Der Raum gilt als "Präsent", wenn mindestens eine der folgenden Bedingungen erf
 
 **Schaltverhalten**
 *   **Bei Präsenz:** Es wird die konfigurierte Szene für Tag (`SceneOn`) oder Nacht (`SceneOnNight`) an die KNX-Variable gesendet. Ist die Option "Automatisch einschalten bei Dunkelheit" aktiv, geschieht dies nur, wenn die **Helligkeitsschwelle** unterschritten wird.
-*   **Bei Abwesenheit:** Es wird die "Aus"-Szene (`SceneOff`) gesendet.
+*   **Bei Abwesenheit:** Es wird die "Aus"-Szene (`SceneOff`) gesendet, außer eine Master-Instanz ist noch aktiv. In diesem Fall wird auf die zuletzt vom Master gesendete Szene gewechselt.
 
 **Manueller Modus**
 Wird über den *Manuellen Schalter* oder einen *Szenen-Eingang* (konfiguriert als Manuell) eingegriffen, wechselt das Modul in den manuellen Modus.
-*   Sensoren werden in diesem Modus ignoriert (das Licht bleibt im gewählten Zustand).
+*   Sensoren und Client-Instanzen werden in diesem Modus ignoriert (das Licht bleibt im gewählten Zustand).
 *   Ein Timer (`ManualDuration`) läuft ab. Nach Ablauf fällt das Modul automatisch in den Automatik-Modus zurück und prüft erneut die Sensoren.
 *   Der *Automatik Schalter* kann genutzt werden, um den manuellen Modus sofort zu beenden.
 
