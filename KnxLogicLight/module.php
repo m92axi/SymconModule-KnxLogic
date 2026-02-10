@@ -712,6 +712,8 @@ class KnxLogicLight extends IPSModule
                         $this->SendScene(false);
                     $this->SendDebug(__FUNCTION__, 'Auto Mode: No Presence change detected', 0);
                     }
+
+                    $this->SetBuffer('OldBrightnessBlock', $brightnessBlock );
                 }
 
             }
@@ -846,9 +848,9 @@ class KnxLogicLight extends IPSModule
         $oldBlock = $this->GetBuffer('BrightnessBlock');
         $this->SetBuffer('OldBrightnessBlock', $oldBlock);
         $newBlock = $isTooBright ? '1' : '0';
-        
+        $this->SetBuffer('BrightnessBlock', $newBlock);
+
         if ($oldBlock !== $newBlock) {
-            $this->SetBuffer('BrightnessBlock', $newBlock);
             $this->SendDebug(__FUNCTION__, 'Brightness Block changed to: ' . $newBlock, 0);
             // Trigger state update to apply brightness logic
             $this->UpdateState(null, -1);
