@@ -307,6 +307,7 @@ class KnxLogicLight extends IPSModule
                     $this->CycleScenes();
                     $this->UpdateMotionTime();
                     $this->UpdateState($this->CheckPresence(), -1);
+                    $this->WriteKNXScene($this->GetBuffer('ActiveSequenceScene'));
                 } else {
                     $this->UpdateState($state, 0);
                 }
