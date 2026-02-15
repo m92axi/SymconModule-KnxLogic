@@ -306,8 +306,13 @@ class KnxLogicLight extends IPSModule
                 if ($state && !GetValueBoolean($this->GetIDForIdent('ManualActive'))) {
                     $this->CycleScenes();
                     $this->UpdateMotionTime();
+                    $seqScene = $this->GetBuffer('ActiveSequenceScene');
+                    if ($seqScene !== '') {
+                        $this->WriteKNXScene((int)$seqScene);
+                    }
+                    
                     $this->UpdateState($this->CheckPresence(), -1);
-                    $this->WriteKNXScene($this->GetBuffer('ActiveSequenceScene'));
+                    
                 } else {
                     $this->UpdateState($state, 0);
                 }
@@ -499,6 +504,7 @@ class KnxLogicLight extends IPSModule
             $this->SetBuffer('IgnoreSceneUpdate', (string)microtime(true));
             RequestAction($sceneVar, $Value);
         }
+        $this->SendDebug(__FUNCTION__, 'Scene sent to KNX: ' . $Value, 0);
 
         $sceneOff = $this->ReadPropertyInteger('SceneOff');
         SetValueBoolean($this->GetIDForIdent('LightState'), $Value !== $sceneOff);
