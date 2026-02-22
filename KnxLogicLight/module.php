@@ -840,17 +840,31 @@ class KnxLogicLight extends IPSModule
 
         $isTooBright = false;
         
-        if ($lightState) {
-            // Light is ON: Check if we should turn OFF
-            if ($autoOff && $currentBrightness > ($threshold + $hysteresis)) {
+       // Check if if Brightness Block should be active
+       if ( $currentBrightness >= ($threshold + $hysteresis)) {
+            // light can be turned OFF or should be blocked from turning ON
+            if ($autoOff) {
+
                 $isTooBright = true;
             }
-        } else {
-            // Light is OFF: Check if we should BLOCK turning ON
-            if ($autoOn && $currentBrightness >= $threshold) {
-                $isTooBright = true;
+        } elseif ($currentBrightness < ($threshold )) {
+            // light can be turned ON or should not blocked
+            if ($autoOn) {
+                $isTooBright = false;
             }
         }
+       
+        // if ($lightState) {
+        //     // Light is ON: Check if we should turn OFF
+        //     if ($autoOff && $currentBrightness > ($threshold + $hysteresis)) {
+        //         $isTooBright = true;
+        //     }
+        // } else {
+        //     // Light is OFF: Check if we should BLOCK turning ON
+        //     if ($autoOn && $currentBrightness >= $threshold) {
+        //         $isTooBright = true;
+        //     }
+        // }
         
         $oldBlock = $this->GetBuffer('BrightnessBlock');
         $this->SetBuffer('OldBrightnessBlock', $oldBlock);
