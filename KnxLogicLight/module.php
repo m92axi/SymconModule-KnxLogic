@@ -838,9 +838,10 @@ class KnxLogicLight extends IPSModule
         $autoOn = $this->ReadPropertyBoolean('AutoOnOnBrightness');
         $autoOff = $this->ReadPropertyBoolean('AutoOffOnBrightness');
 
-        $isTooBright = false;
+        $isTooBright = $this->GetBuffer('BrightnessBlock') == '1';
         
        // Check if if Brightness Block should be active
+       $this->SendDebug(__FUNCTION__, 'Checking Brightness Logic. Current: ' . $currentBrightness . ' Lux, Threshold: ' . $threshold . ' Lux, Hysteresis: ' . $hysteresis . ' Lux, LightState: ' . ($lightState ? 'ON' : 'OFF') . ', IsTooBright: ' . ($isTooBright ? 'Yes' : 'No'), 0);
        if ( $currentBrightness >= ($threshold + $hysteresis)) {
             // light can be turned OFF or should be blocked from turning ON
             if ($autoOff) {
