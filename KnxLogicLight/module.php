@@ -396,9 +396,8 @@ class KnxLogicLight extends IPSModule
                     $this->SendDebug(__FUNCTION__, 'External scene change to ON state (Scene ' . $val . ') detected. ', 0);
                     $this->UpdateState(true, -1, false);
                 } else { // $val == $sceneOff
-                    // When turned off externally, we can go back to auto mode immediately
                     $this->SendDebug(__FUNCTION__, 'External scene change to OFF state (Scene ' . $val . ') detected. ', 0);
-                    $this->UpdateState(false, -1, false);
+                    $this->UpdateState(NULL, -1, false);
                 }
                 return;
             }
